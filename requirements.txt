@@ -1,0 +1,6 @@
+#python==3.11.5
+streamlit==1.31.1
+torch
+transformers
+scikit-learn
+fuzzywuzzy
