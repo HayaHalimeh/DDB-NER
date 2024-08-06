@@ -7,7 +7,6 @@ import streamlit as st
 # Suppose repo_script.py is in the same directory as this Streamlit app,
 # or adjust the import statement according to your directory structure.
 import time
-import unicodedata
 from german_ner.GermanNER import GermanNerModel
 from functions.utils import *
 from ddbcaller._ddbcaller_class import DDBCaller
@@ -23,7 +22,6 @@ ddb = DDBCaller(os.environ['DDB_API_KEY'])
 model_name = "mschiesser/ner-bert-german"
 
 label_suffixes = ["-PER",  "-ORG"]
-access_token = read_access_token_from_file("./hf_access_token.txt")
 ner_model  = GermanNerModel(model_name)
 ddb_name = 'Deutsche Digitale Bibliothek'
 
@@ -168,7 +166,7 @@ def process_entities_by_type(entities, label_type):
                     st.write(f" ➡️ {data['numberOfResults']} possible matches found")
  
                     gnd_info = extract_gnd_info(data)
-                    st.write('gnd_info', gnd_info)
+                    #st.write('gnd_info', gnd_info)
 
                     # Jaccard distance matching
                     with st.spinner(' 🚀  Running Jaccard Similarity Search ...'):
@@ -233,6 +231,22 @@ def process_entities_by_type(entities, label_type):
 
 
 def main():
+
+    def set_light_theme():
+        config_path = "./config.toml"
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)  # Create .streamlit directory if not exists
+
+        with open(config_path, "w") as config_file:
+            config_file.write(
+                """
+                [theme]
+                base = "light"
+                """
+            )
+
+    # Set the theme before the app runs
+    set_light_theme()
+
     # Image paths
     logo_path_ddb = "./logo_ddb.png"  # Path to DDB logo
     logo_path_sicp = "./sicp.png"  # Path to SICP logo

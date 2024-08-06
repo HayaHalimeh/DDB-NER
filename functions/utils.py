@@ -241,7 +241,7 @@ def get_ddb_url(entry: dict) -> str:
         gnd_id = entry.get("gnd_id")
 
         if gnd_id:
-            print("entry: ", entry)
+            #print("entry: ", entry)
             
             
             if entry["type"] == "person":
