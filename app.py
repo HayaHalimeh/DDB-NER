@@ -12,21 +12,21 @@ from functions.utils import *
 from ddbcaller._ddbcaller_class import DDBCaller
 from functions.callLobidGndApi import *
 from functions.utils import *
+from sentence_transformers import SentenceTransformer
+from PIL import Image
 
 
 print(os.getcwd())
 os.environ['DDB_API_KEY']= read_access_token_from_file(token_file_path= "./ddb_access_token.txt")
 ddb = DDBCaller(os.environ['DDB_API_KEY'])
 
-
-model_name = "mschiesser/ner-bert-german"
+model_name = "mschiesser/ner-bert-german" 
 
 label_suffixes = ["-PER",  "-ORG"]
 ner_model  = GermanNerModel(model_name)
 ddb_name = 'Deutsche Digitale Bibliothek'
+embedding_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
-
-from PIL import Image
 
 
 #App Functions
@@ -62,7 +62,6 @@ def normalize_text(text: str ) -> str:
     return text.strip()
 
 
-
 # Extract the 'id' from the given nested data structure if only one results returned
 def extract_id(data):
     """
@@ -82,6 +81,7 @@ def extract_id(data):
         print(f"Error accessing ID: {e}")
         return None
  
+
 # DNB Function
 def match_against_dnb(ddb_url, entity_name, ner_model):
     """
@@ -93,8 +93,6 @@ def match_against_dnb(ddb_url, entity_name, ner_model):
         bool: True if the entity name is found in the lobid data, else False.
         
     """
-    st.markdown(" 🔍 Validate result by matching detected entity with the Deutsche Nationalbibliothek ")
-
 
     if isinstance(ddb_url, str) == True:
         query = ddb_url.split("/")[-1]
@@ -102,129 +100,177 @@ def match_against_dnb(ddb_url, entity_name, ner_model):
 
         match = match_names(get_lodib_data(query), entity_name, ner_model)    # ddb_name, ddb_url,
 
-        if match is not None and match == True:
+        if match is not None:
+            st.markdown(" 🔍 Validate result by matching detected entity with the Deutsche Nationalbibliothek ")
             st.markdown(f""" 
             <li> Result verified from the Deutsche Nationalbibliothek: <a href="{url}" target="_blank">{url}</a></li>
             """, unsafe_allow_html=True)
 
             st.markdown("</ul></div>", unsafe_allow_html=True)
-        else:
-            st.warning('* No verified match from Deutsche Nationalbibliothek found')
-            
+        #else:
+        #    st.warning('* No verified match from Deutsche Nationalbibliothek found')
+        
 
-# DDB Function
-def process_entities_by_type(entities, label_type):
+
+def process_entities_by_type(entities, labels, label_type, similarity_threshold, profession=None, city=None, one_name_person=False):
 
     """
     Process extracted entities of a specific type (PER or ORG), match them with the DDB, and perform similarity checks.
     """
 
-    already_seen = list()
+
     ddb_url = None
+    already_seen = list()
 
     if label_type ==  "PER":
         input_type = "person"
     else:
         input_type = "location"
+
+
+    for entity, label in zip(entities, labels):
         
-    types, values = concatenate_entities(entities)
-   
-    with st.spinner('App running...'):
-        for entity, label in zip(types, values):
+        print("-"*25)
+        print("entity, label", entity, label)
+
+        ddb_url= None 
+
+        if label != label_type:
+            continue
+
+
+        if label == "PER" and len(entity.split()) < 2 and one_name_person == False:
+            st.write(f" ➡️ Entity {entity} not complete, Skip entity!")
+            # Custom styled horizontal line
+            st.markdown("""
+            <style>
+            .divider {
+                border-top: 2px solid #bbb;
+                margin-top: 20px;
+                margin-bottom: 20px;
+            }
+            </style>
+            <div class="divider"></div>
+            """, unsafe_allow_html=True)
+            continue
+
+
+        #entity = normalize_text(entity)
+        #print("entity normalize_text", entity)
+
+        if entity in already_seen:
+            continue
+
+
+        already_seen.append(entity)
+        st.write(f" ➡️ Entity {entity}: Entity Type {input_type.capitalize() } detected")
+
+
+        with st.spinner(f" 🔄 Searching for {entity} in DDB ..."):
+        
+            # Perform query based on entity type
+            if label == "PER":
+                data = ddb.get_person(entity, {})
+            elif label == "ORG":
+                data = ddb.get_organisation(entity, {})
+
+                print("data", data)
             
-            if label != label_type:
-                continue
+                
+            if data is None or data['numberOfResults'] == 0:
+                st.markdown(
+                f"* No match found for **{entity}: {input_type.capitalize()}**.",
+                unsafe_allow_html=True
+            )
 
-            entity = normalize_text(entity)
-            
-            if entity in already_seen:
-                continue
+            else:
+                gnd_info = extract_gnd_info(data)
+                print(gnd_info)
 
-            already_seen.append(entity)
-            st.success(f" * {input_type} entity: {entity} detected")
-            
-            with st.spinner(f" 🚀  Querying Deutsche Digitale Bibliothek for {input_type}: {entity} ..."):
-           
-                # Perform query based on entity type
-                if label == "PER":
-                    data = ddb.get_person(entity, {})
-                elif label == "ORG":
-                    data = ddb.get_organisation(entity, {})
-                else:
-                    data = ddb.get_query(entity, {})
+                if label == "PER" and len(profession) > 0:
+                    gnd_info = filter_by_profession(embedding_model, gnd_info, profession, threshold=0.7)
+
+                    if gnd_info['numberOfResults'] == 0:
+                        st.markdown(
+                        f"* No match found for **{entity}: {input_type.capitalize()}**. Try without the profession filter.",
+                        unsafe_allow_html=True
+                    )
+                        continue
 
 
-                if data is None or data['numberOfResults'] == 0:
-                    #sometimes the search in DDB in not tailored to the entity type, try geenral query
-                    with st.spinner(f" 🔄 No match found for {input_type} {entity} in DDB. Trying general querying ..."):
-                        data = ddb.get_query(entity, {})
-                    
-                if data is None or data['numberOfResults'] == 0:
-                    st.write("* No match from the Deutsche Digitale Bibliothek found.")
+                elif label == "ORG" and len(city) > 0:
+                    gnd_info = filter_by_city(gnd_info, city)
 
-                else:
-                    st.write(f" ➡️ {data['numberOfResults']} possible matches found")
- 
-                    gnd_info = extract_gnd_info(data)
-                    #st.write('gnd_info', gnd_info)
+                    if gnd_info['numberOfResults'] == 0:
+                        st.markdown(
+                        f"* No match found for **{entity}: {input_type.capitalize()}**. Try without the city filter.",
+                        unsafe_allow_html=True
+                    )
+                        continue
 
-                    # Jaccard distance matching
-                    with st.spinner(' 🚀  Running Jaccard Similarity Search ...'):
-                        st.write('Jaccard Search')
+
+
+                print("-"*25)
+                print("filtered gnd_info", gnd_info)
+
+                # Jaccard distance matching
+                with st.spinner(' 🔄 Running Jaccard Similarity Search ...'):
+                    sorted_results = sorted_jaccard_distance(entity, gnd_info)    
+                    ddb_url = find_jaccard_best_match(entity, sorted_results)
+
+                if ddb_url is not None:
+
+                    st.markdown(f""" <br> ✅ Jaccard Search in DDB complete for {entity}""", unsafe_allow_html=True)
+
+                    st.markdown(f"""
+                        <li>Best match from DDB: <a href="{ddb_url}" target="_blank">{ddb_url}</a></li>
+                        """, unsafe_allow_html=True)
+
+                    st.markdown("</ul></div>", unsafe_allow_html=True)
                         
-                        sorted_results = sorted_jaccard_distance(entity, gnd_info)    
-                        ddb_url = find_jaccard_best_match(entity, sorted_results)
+                else:
 
-                    if ddb_url is not None:
+                    # Cosine similarity matching
+                    with st.spinner('🔄 Running Semantic Similarity Search ...'):                        
+                        
+                        similarity_threshold = similarity_threshold
+                        ddb_url, max_similarity = find_cosine_best_match(ner_model, entity, gnd_info)
+                        
+                    if max_similarity >= similarity_threshold:
 
-                        st.markdown(f""" <br> ✅ Jaccard Search in DDB complete for {entity}""", unsafe_allow_html=True)
+                        st.markdown(f""" <br> ✅ Semantic Search in DDB complete for {entity}
+                        """, unsafe_allow_html=True)
 
                         st.markdown(f"""
-                            <li>Best match from DDB: <a href="{ddb_url}" target="_blank">{ddb_url}</a></li>
-                            """, unsafe_allow_html=True)
+                        <li>Best match from DDB: <a href="{ddb_url}" target="_blank">{ddb_url}</a></li>
+                        """, unsafe_allow_html=True)
 
                         st.markdown("</ul></div>", unsafe_allow_html=True)
-                            
                     else:
-
-                        # Cosine similarity matching
-                        with st.spinner('🚀 Running Semantic Similarity Search ...'):
-                            st.write('Cosine Search')
-                            
-                            
-                            similarity_threshold = .9
-                            ddb_url, max_similarity = find_cosine_best_match(ner_model, entity, gnd_info)
-                            
-                            if max_similarity >= similarity_threshold:
-
-                                st.markdown(f""" <br> ✅ Semantic Search in DDB complete for {entity}
-                                """, unsafe_allow_html=True)
-
-                                st.markdown(f"""
-                                <li>Best match from DDB: <a href="{ddb_url}" target="_blank">{ddb_url}</a></li>
-                                """, unsafe_allow_html=True)
-
-                                st.markdown("</ul></div>", unsafe_allow_html=True)
-                            else:
-                                st.warning(" * No appropriate match found in DDB")
+                        st.markdown(
+                        f"* A total of **{data['numberOfResults']}** possible matches were found in the DDB, but none met the current similarity threshold. Try adjusting the **Semantic Similarity Threshold** to improve results.",
+                        unsafe_allow_html=True
+                    )
+                        ddb_url = None
 
                 if ddb_url is not None:
                     match_against_dnb(ddb_url, entity, ner_model)
 
-                    # Custom styled horizontal line
-                    st.markdown("""
-                        <style>
-                        .divider {
-                            border-top: 2px solid #bbb;
-                            margin-top: 20px;
-                            margin-bottom: 20px;
-                        }
-                        </style>
-                        <div class="divider"></div>
-                        """, unsafe_allow_html=True)
+        # Custom styled horizontal line
+        st.markdown("""
+            <style>
+            .divider {
+                border-top: 2px solid #bbb;
+                margin-top: 20px;
+                margin-bottom: 20px;
+            }
+            </style>
+            <div class="divider"></div>
+            """, unsafe_allow_html=True)
+        
 
     if len(already_seen) == 0 and ddb_url is None:
-        st.warning(f"* No {input_type.lower()} entities found")
+        st.warning(f"* No {input_type.capitalize()} entities found!")
 
 
 
@@ -293,8 +339,9 @@ def main():
     Welcome to the DDB NER App! This application allows you to extract named entities from text and find matches in the Deutsche Digitale Bibliothek and LOBID databases.
     
     **Instructions**:
-    - Select the type of input: General, Person, or Location.
-    - Enter the relevant text or name.
+    - Select the type of input: Person or Location.
+    - Enter the relevant text.
+    - Adjust the semantic similarity threshold.
     - Click 'Run Command' to perform the analysis.
     """)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -302,7 +349,7 @@ def main():
 
 
     # Selection for input type
-    input_type = st.radio("Select the type of input you want to provide:", ("General", "Person", "Location"))
+    input_type = st.radio("Select the type of input you want to provide:", ("Person", "Location"))
 
     # Text input based on selected type
     user_input = ""
@@ -310,43 +357,94 @@ def main():
     
     if input_type == "Person":
         user_input = st.text_input("Enter the name of the person you want to search for:")
-        user_input = user_input.title()
-        user_input = f"{user_input} ist ein bekannter Künstler" if user_input else ""
+        user_input = clean_html_text(user_input)
+        #user_input = user_input.title()
+        user_input = f"{user_input}, ist bekannt" if user_input else ""
+        profession =  st.text_input("Enter the name of the professsion you want to restrict the results to:")
+
+        one_name_person = st.checkbox("One Name Person")
+        spacy_filtering = st.checkbox("Use Spacy Filtering")
+        
+
+
     elif input_type == "Location":
         user_input = st.text_input("Enter the name of the location you want to search for:")
-        user_input = user_input.title()
+        user_input = clean_html_text(user_input)
+        #user_input = user_input.title()
         user_input = f"Die {user_input} ist ein bekannter Ort" if user_input else ""
-    elif input_type == "General":
-        user_input = st.text_input("Enter your description here:")
-        user_input = user_input.title()
+        city =  st.text_input("Enter the name of the city you want to restrict the results to:")
+        
+    
+
+        # Add the similarity threshold slider under the text input
+    similarity_threshold = st.slider(
+        "Semantic Similarity Threshold",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.9,
+        step=0.01,
+        help="Adjust the threshold for semantic similarity matching. Higher values require more precise matches."
+    )
+
+
 
     # Button to run command
     if st.button("Run Command"):
+        print("-"*120)
 
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
         # Perform NER and process entities based on the selected input type
         if user_input:
 
-            with st.spinner(f" 🚀 Running NER on the input text ..."):
-                time.sleep(1)
-                entities = ner_model.perform_ner(label_suffixes, '"' + user_input + '"')
+            with st.spinner(f" 🚀 App Running"):
+                with st.spinner(f" 🔄 Detecting Entities"):
+                    
+                    user_input = '"' + user_input + '"'    
+                   
+                   
+                if input_type == "Person":
+                        
+                        entities =  ner_model.perform_ner_with_sliding_window(user_input, label_suffixes, max_tokens=512, overlap=100)
+                        print('entities:', entities)
+                        entities, labels = concatenate_entities(entities)
+                        entities = [re.sub(r"\[CLS\]|\[SEP\]|\[UNK\]", "", text).strip() for text in entities]
+                        entities, labels = filter_entities_by_length(entities, labels, max_length=5)
+                        print('entities', 'labels', entities, labels)
 
-            if entities is not None:    
-                if input_type == "General":
-                    st.markdown('<h2 style="text-align: left; color: black;">Detected Entities:</h2>', unsafe_allow_html=True)
-                    process_entities_by_type(entities, "PER")
-                    process_entities_by_type(entities, "ORG")
-                elif input_type == "Person":
-                    st.markdown('<h2 style="text-align: left; color: black;">Person Entities:</h2>', unsafe_allow_html=True)
-                    process_entities_by_type(entities, "PER")
+                        if not one_name_person:
+                            if spacy_filtering:
+                                entities, labels = spacy_filter_entities(entities)
+                                print('After Spacy entities', 'labels', entities, labels)
+                                    
+                        if entities is not None: 
+                            st.markdown('<h2 style="text-align: left; color: black;">Person Entities:</h2>', unsafe_allow_html=True)
+                            process_entities_by_type(entities, labels,"PER", similarity_threshold, profession=profession, city=None, one_name_person=one_name_person)
+                        else:
+                            st.warning(f"No {input_type.lower()} entities detecetd with the NER Model.")
+                        
+                    
                 elif input_type == "Location":
-                    st.markdown('<h2 style="text-align: left; color: black;">Organization Entities:</h2>', unsafe_allow_html=True)
-                    process_entities_by_type(entities, "ORG")
-            else:
-                st.warning(f"No {input_type.lower()} entities detecetd with the NER Model.")
+                        
+                        user_input = remove_genitive_s(user_input)
+                        entities =  ner_model.perform_ner_with_sliding_window(user_input, label_suffixes, max_tokens=512, overlap=100)
+                        print('ner_model entities:', entities)
+                        entities, labels = concatenate_entities(entities)
+                        print('concatenate_entities  entities', 'labels', entities, labels)
+                        entities = [re.sub(r"\[CLS\]|\[SEP\]|\[UNK\]", "", text).strip() for text in entities]
+                        entities = [replace_hyphen_whitespace(text) for text in entities]
+                        #entities = [normalize_text(entity) for entity in entities]
+                        print(' Clean entities', 'labels', entities, labels)
 
-            st.success("Search complete!")
+
+                        if entities is not None: 
+                            st.markdown('<h2 style="text-align: left; color: black;">Organization Entities:</h2>', unsafe_allow_html=True)
+                            process_entities_by_type(entities,labels, "ORG", similarity_threshold, profession=None, city=city)
+                        else:
+                            st.warning(f"No {input_type.lower()} entities detecetd with the NER Model.")
+                
+
+                st.success("Search complete!")
         else:
             st.write("Please enter some text to run the command.")
 
