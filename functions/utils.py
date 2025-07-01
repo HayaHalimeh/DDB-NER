@@ -100,8 +100,9 @@ def clean_html_text(html_content: str) -> str:
 
     # Normalize spaces caused by replacements
     text = re.sub(r"\s+", " ", text).strip()
-
     return text
+
+
 
 def concatenate_entities(entities):
 
@@ -137,13 +138,11 @@ def concatenate_entities(entities):
     
     """
 
-    
     sentences = []
     current_sentence = []
     labels = []
 
     for item in entities:
-        #print("item: ", item)
         if len(item) == 2:
             word, label = item
         
@@ -152,7 +151,6 @@ def concatenate_entities(entities):
             if label.startswith("B") and not word.startswith("##"):
                 current_sentence.append((word, label))
                 labels.append(label[-3:])
-                #print("star new current_sentence: ", current_sentence)
             else:
                 continue
 
@@ -160,8 +158,6 @@ def concatenate_entities(entities):
             if current_sentence[-1][1] == label:
                 current_sentence.append((word, label))
                 
-
-          
             elif current_sentence[-1][1][-3:] == label[-3:] and current_sentence[-1][1][0] == 'B' and label[0] == 'I':
                 current_sentence.append((word, label))
 
@@ -172,40 +168,29 @@ def concatenate_entities(entities):
                 # Append the joined sentence to the list of sentences
                 sentences.append(joined_sentence)
                 current_sentence = []
-                #print("label match current_sentence: ", current_sentence)
-
 
             else:
                 joined_sentence = "".join([word.replace("##", "") if word.startswith("##") else " " + word for word, _ in current_sentence]).strip()
-                                    
                 # Append the joined sentence to the list of sentences
                 sentences.append(joined_sentence)
-
                 current_sentence = []
-                #print("star new current_sentence: ", current_sentence)
-                
                 if label.startswith("B") and not word.startswith("##"):
                     # Clear the current sentence
                     current_sentence = [(word, label)]
                     labels.append(label[-3:])
-                    #print("star new current_sentence: ", current_sentence)
                     
                 else:
                     continue
                     
     # Process the last sentence
     if current_sentence:
-        joined_sentence = "".join([word.replace("##", "") if word.startswith("##") else " " + word for word, _ in current_sentence]).strip() #word if len(word) in [1, 2] else 
-        
+        joined_sentence = "".join([word.replace("##", "") if word.startswith("##") else " " + word for word, _ in current_sentence]).strip() 
         sentences.append(joined_sentence)
-
-
-
     return sentences, labels
 
 
+
 def extract_gnd_info(data : dict) -> List[Mapping[str, Union[str, List[str]]]]:
-    
     """
     Extract GND (Gemeinsame Normdatei) information from the provided data (supposed to be ddb response json or a snippet of it).
 
@@ -296,12 +281,9 @@ def get_ddb_url(entry: dict) -> str:
         prefix = "https://www.deutsche-digitale-bibliothek.de/"
         
 
-        #entry= #next(iter(entry.values()))
         gnd_id = entry.get("gnd_id")
 
-        if gnd_id:
-            #print("entry: ", entry)
-            
+        if gnd_id:            
             
             if entry["type"] == "person":
                 if "gnd/" in gnd_id:
@@ -329,8 +311,6 @@ def get_ddb_url(entry: dict) -> str:
                 print(f"Error: Unable to access '{url}': {str(e)}")
                 
     return None
-
-
 
 
 
@@ -372,7 +352,6 @@ def filter_by_profession(model, data, profession, threshold=0.9):
 def filter_by_city( data, city):
 
     filtered_results = []
-    
     
     for location in data.get("results", []):
         if "city_de" not in location.keys():
@@ -495,7 +474,6 @@ def find_jaccard_best_match(query: str, gnd_info: dict) -> str:
 
 
 
-
 def find_cosine_best_match(ner_model, query: str, gnd_info: dict) -> str:
 
     """
@@ -571,10 +549,8 @@ def spacy_filter_entities(entities):
     labels = []
     
     for entity in entities:
-        doc = nlp(entity)  # Process each entity#
-        #print("doc: ", doc)
+        doc = nlp(entity) 
         for ent in doc.ents:
-            #print("ent: ", ent.label_)
             if ent.label_ in ["PER", "ORG"]:  
                 if ent.text not in results:
                     results.append(ent.text)

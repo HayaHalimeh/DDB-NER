@@ -1,11 +1,9 @@
 import os
-os.environ['dir'] = "./" #"/Users/halimeh/Desktop/DDB-NER"
+os.environ['dir'] = "./" 
 os.chdir(os.environ['dir'])
 
 
 import streamlit as st
-# Suppose repo_script.py is in the same directory as this Streamlit app,
-# or adjust the import statement according to your directory structure.
 import time
 from german_ner.GermanNER import GermanNerModel
 from functions.utils import *
@@ -46,7 +44,7 @@ def make_background_transparent(image_path, output_path, target_color=(255, 255,
     for item in image.getdata():
         # Calculate if the current pixel falls within the target_color plus tolerance
         if all(abs(item[i] - target_color[i]) <= tolerance for i in range(3)):
-            newData.append((255, 255, 255, 0))  # Make this pixel fully transparent
+            newData.append((255, 255, 255, 0))  
         else:
             newData.append(item)
 
@@ -57,7 +55,6 @@ def make_background_transparent(image_path, output_path, target_color=(255, 255,
 # Preprocessing functions
 def normalize_text(text: str ) -> str:
     import re
-
     text = re.sub(r"[^\w\s]", "", text)
     return text.strip()
 
@@ -98,7 +95,7 @@ def match_against_dnb(ddb_url, entity_name, ner_model):
         query = ddb_url.split("/")[-1]
         url = f'https://d-nb.info/gnd/{query}/about'
 
-        match = match_names(get_lodib_data(query), entity_name, ner_model)    # ddb_name, ddb_url,
+        match = match_names(get_lodib_data(query), entity_name, ner_model)    
 
         if match is not None:
             st.markdown(" 🔍 Validate result by matching detected entity with the Deutsche Nationalbibliothek ")
@@ -107,8 +104,6 @@ def match_against_dnb(ddb_url, entity_name, ner_model):
             """, unsafe_allow_html=True)
 
             st.markdown("</ul></div>", unsafe_allow_html=True)
-        #else:
-        #    st.warning('* No verified match from Deutsche Nationalbibliothek found')
         
 
 
@@ -117,8 +112,6 @@ def process_entities_by_type(entities, labels, label_type, similarity_threshold,
     """
     Process extracted entities of a specific type (PER or ORG), match them with the DDB, and perform similarity checks.
     """
-
-
     ddb_url = None
     already_seen = list()
 
@@ -126,7 +119,6 @@ def process_entities_by_type(entities, labels, label_type, similarity_threshold,
         input_type = "person"
     else:
         input_type = "location"
-
 
     for entity, label in zip(entities, labels):
         
@@ -153,18 +145,11 @@ def process_entities_by_type(entities, labels, label_type, similarity_threshold,
             <div class="divider"></div>
             """, unsafe_allow_html=True)
             continue
-
-
-        #entity = normalize_text(entity)
-        #print("entity normalize_text", entity)
-
         if entity in already_seen:
             continue
 
-
         already_seen.append(entity)
         st.write(f" ➡️ Entity {entity}: Entity Type {input_type.capitalize() } detected")
-
 
         with st.spinner(f" 🔄 Searching for {entity} in DDB ..."):
         
@@ -173,9 +158,6 @@ def process_entities_by_type(entities, labels, label_type, similarity_threshold,
                 data = ddb.get_person(entity, {})
             elif label == "ORG":
                 data = ddb.get_organisation(entity, {})
-
-                print("data", data)
-            
                 
             if data is None or data['numberOfResults'] == 0:
                 st.markdown(
@@ -207,12 +189,7 @@ def process_entities_by_type(entities, labels, label_type, similarity_threshold,
                         unsafe_allow_html=True
                     )
                         continue
-
-
-
-                print("-"*25)
-                print("filtered gnd_info", gnd_info)
-
+                
                 # Jaccard distance matching
                 with st.spinner(' 🔄 Running Jaccard Similarity Search ...'):
                     sorted_results = sorted_jaccard_distance(entity, gnd_info)    
@@ -268,19 +245,15 @@ def process_entities_by_type(entities, labels, label_type, similarity_threshold,
             <div class="divider"></div>
             """, unsafe_allow_html=True)
         
-
     if len(already_seen) == 0 and ddb_url is None:
         st.warning(f"* No {input_type.capitalize()} entities found!")
-
-
-
 
 
 def main():
 
     def set_light_theme():
         config_path = "./config.toml"
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)  # Create .streamlit directory if not exists
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)  
 
         with open(config_path, "w") as config_file:
             config_file.write(
@@ -294,10 +267,10 @@ def main():
     set_light_theme()
 
     # Image paths
-    logo_path_ddb = "./logo_ddb.png"  # Path to DDB logo
-    logo_path_sicp = "./sicp.png"  # Path to SICP logo
-    logo_path_da = "./transparent_logo.png"  # Path to DA logo
-    ddb_ner_path = "./ddb_ner_diagram.jpg"  # Path to your JPEG image
+    logo_path_ddb = "./logo_ddb.png"  
+    logo_path_sicp = "./sicp.png"  
+    logo_path_da = "./transparent_logo.png"  
+    ddb_ner_path = "./ddb_ner_diagram.jpg"  
 
     # Load the JPEG image
     ddb_ner_image = Image.open(ddb_ner_path)
@@ -313,7 +286,7 @@ def main():
     
     st.sidebar.markdown("""
     This app allows you to:
-    - Extract entities from text.
+    - Extract person and location entities from text.
     - Match entities with databases.
     - View results interactively.
     """)
@@ -336,7 +309,7 @@ def main():
 
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     st.markdown("""
-    Welcome to the DDB NER App! This application allows you to extract named entities from text and find matches in the Deutsche Digitale Bibliothek and LOBID databases.
+    Welcome to the DDB NER App! This application allows you to extract person and location named entities from text and find matches in the Deutsche Digitale Bibliothek and LOBID databases.
     
     **Instructions**:
     - Select the type of input: Person or Location.
@@ -345,8 +318,6 @@ def main():
     - Click 'Run Command' to perform the analysis.
     """)
     st.markdown('</div>', unsafe_allow_html=True)
-
-
 
     # Selection for input type
     input_type = st.radio("Select the type of input you want to provide:", ("Person", "Location"))
@@ -358,7 +329,6 @@ def main():
     if input_type == "Person":
         user_input = st.text_input("Enter the name of the person you want to search for:")
         user_input = clean_html_text(user_input)
-        #user_input = user_input.title()
         user_input = f"{user_input}, ist bekannt" if user_input else ""
         profession =  st.text_input("Enter the name of the professsion you want to restrict the results to:")
 
@@ -370,11 +340,8 @@ def main():
     elif input_type == "Location":
         user_input = st.text_input("Enter the name of the location you want to search for:")
         user_input = clean_html_text(user_input)
-        #user_input = user_input.title()
         user_input = f"Die {user_input} ist ein bekannter Ort" if user_input else ""
         city =  st.text_input("Enter the name of the city you want to restrict the results to:")
-        
-    
 
         # Add the similarity threshold slider under the text input
     similarity_threshold = st.slider(
@@ -386,12 +353,8 @@ def main():
         help="Adjust the threshold for semantic similarity matching. Higher values require more precise matches."
     )
 
-
-
     # Button to run command
     if st.button("Run Command"):
-        print("-"*120)
-
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
         # Perform NER and process entities based on the selected input type
@@ -399,18 +362,13 @@ def main():
 
             with st.spinner(f" 🚀 App Running"):
                 with st.spinner(f" 🔄 Detecting Entities"):
-                    
                     user_input = '"' + user_input + '"'    
                    
-                   
                 if input_type == "Person":
-                        
                         entities =  ner_model.perform_ner_with_sliding_window(user_input, label_suffixes, max_tokens=512, overlap=100)
-                        print('entities:', entities)
                         entities, labels = concatenate_entities(entities)
                         entities = [re.sub(r"\[CLS\]|\[SEP\]|\[UNK\]", "", text).strip() for text in entities]
                         entities, labels = filter_entities_by_length(entities, labels, max_length=5)
-                        print('entities', 'labels', entities, labels)
 
                         if not one_name_person:
                             if spacy_filtering:
@@ -425,25 +383,17 @@ def main():
                         
                     
                 elif input_type == "Location":
-                        
                         user_input = remove_genitive_s(user_input)
                         entities =  ner_model.perform_ner_with_sliding_window(user_input, label_suffixes, max_tokens=512, overlap=100)
-                        print('ner_model entities:', entities)
                         entities, labels = concatenate_entities(entities)
-                        print('concatenate_entities  entities', 'labels', entities, labels)
                         entities = [re.sub(r"\[CLS\]|\[SEP\]|\[UNK\]", "", text).strip() for text in entities]
                         entities = [replace_hyphen_whitespace(text) for text in entities]
-                        #entities = [normalize_text(entity) for entity in entities]
-                        print(' Clean entities', 'labels', entities, labels)
-
 
                         if entities is not None: 
                             st.markdown('<h2 style="text-align: left; color: black;">Organization Entities:</h2>', unsafe_allow_html=True)
                             process_entities_by_type(entities,labels, "ORG", similarity_threshold, profession=None, city=city)
                         else:
                             st.warning(f"No {input_type.lower()} entities detecetd with the NER Model.")
-                
-
                 st.success("Search complete!")
         else:
             st.write("Please enter some text to run the command.")
@@ -451,9 +401,7 @@ def main():
     
 
 if __name__ == "__main__":
-    # Example usage
-    #input_image_path = "./logo.png"
-    #output_image_path = "./transparent_logo.png"
-    #make_background_transparent(input_image_path, output_image_path, target_color=(255, 255, 255))
-
     main()
+
+
+#streamlit run app.py

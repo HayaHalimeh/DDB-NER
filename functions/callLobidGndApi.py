@@ -1,7 +1,6 @@
 
 import requests
 from requests.structures import CaseInsensitiveDict
-import pprint as pprint
 import typing
 from functions.utils import *
 
@@ -63,7 +62,6 @@ def match_ddb_url(data, ddb_name, ddb_url) -> bool:
         bool: True if the DDB URL is found in the lobid data, else False.
     """
 
-    #sameAs = data['member'][0]['sameAs']
     if data['member'] == []:
         return False
     

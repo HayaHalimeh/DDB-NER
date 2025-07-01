@@ -12,15 +12,7 @@ def ollama_german_ner(text, model_name="llama3.2:3b"):
     :return: A single string with the extracted entities in the desired format.
     """
 
-    # Create an Ollama client pointing to the running Ollama server.
-    #client = Client(
-    #    host='http://127.0.0.1:11435',
-    #    headers={'x-some-header': 'some-value'}
-    #)
 
-    # Craft a prompt instructing the model to:
-    #   1) Identify entities (e.g. Person, Hauptstadt, Unternehmen, etc.).
-    #   2) Output them in the desired text format (rather than JSON).
     prompt = f"""
     You are a Named Entity Recognition (NER) system.  
     Extract the named entities :
@@ -38,8 +30,6 @@ def ollama_german_ner(text, model_name="llama3.2:3b"):
 
     Text:
     \"\"\"{text}\"\"\"
-
-
     """
 
     # Send the prompt to the model using the Ollama Python client.
@@ -56,7 +46,6 @@ def ollama_german_ner(text, model_name="llama3.2:3b"):
 
     # The LLM’s text is in response['message']['content'].
     model_output = response['message']['content'].strip()
-
     return model_output
 
 

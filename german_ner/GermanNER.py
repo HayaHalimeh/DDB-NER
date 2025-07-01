@@ -53,7 +53,6 @@ class GermanNerModel:
         
 
     def perform_ner(self, label_suffixes, text):
-
         """
         Performs Named Entity Recognition (NER) on the input `text` and filters entities with labels ending in
         the specified `label_suffixes`.
@@ -81,42 +80,33 @@ class GermanNerModel:
             if self.tokenizer and self.ner_model:
                 # Split text into sentences
                 from nltk.tokenize import sent_tokenize
-
                 sentences = sent_tokenize(text)
-
             else:
                 print("Tokenizer or NER model is not initialized.")
                 return []
 
             for sentence in sentences:
-                #print("-"*50)
-                #print('sentence', sentence)
-                # Tokenize each sentence
                 inputs = self.tokenizer(
                     sentence, return_tensors="pt", truncation=True, max_length=512
                 )
 
-                # Get model predictions
                 outputs = self.ner_model(**inputs).logits
                 predictions = torch.argmax(outputs, dim=2)
 
                 # Extract entities
-                
                 for idx, pred in enumerate(predictions[0].numpy()):
-                
-                    if pred != 0:  # 0 Tag for 'not an entity'
+                    if pred != 0:  
                         entity = self.tokenizer.decode(inputs.input_ids[0][idx])
                         entities.append((entity, self.ner_model.config.id2label[pred]))
 
             filtered_entities = [entity for entity in entities if any(entity[1].endswith(prefix) for prefix in label_suffixes)]
-            #print('filtered_entities', filtered_entities)
             return filtered_entities
-            
-            
+        
         except Exception as e:
             print(f"Error: Unable to perform NER - {str(e)}")
             return []
             
+
 
     def entities_to_vec(self, entities):
         """
@@ -167,10 +157,8 @@ class GermanNerModel:
             total_tokens = len(tokens)
 
             if total_tokens <= max_tokens:
-                print('total_tokens', total_tokens)
                 # If the text is within the limit, process it directly
                 return self.perform_ner(label_suffixes, text)
-            
             else:
                 # Split the text into chunks with overlap
                 chunks = []
@@ -179,14 +167,11 @@ class GermanNerModel:
                     end = min(start + max_tokens, total_tokens)
                     chunk_tokens = tokens[start:end]
 
-                    #print(start, end, chunk_tokens)
                     # Ensure the chunk size is within max_tokens
                     if len(chunk_tokens) > max_tokens:
                         chunk_tokens = chunk_tokens[:max_tokens]
 
                     chunks.append(self.tokenizer.decode(self.tokenizer.convert_tokens_to_ids(chunk_tokens), skip_special_tokens=True))
-
-                    
                     start = start + max_tokens - overlap # Slide the window with overlap
                     if start >= total_tokens:
                         break 
@@ -196,9 +181,7 @@ class GermanNerModel:
                 for chunk in chunks:
                     entities = self.perform_ner(label_suffixes, chunk)
                     aggregated_entities.extend(entities)
-
                 return aggregated_entities
-
         except Exception as e:
             print(f"Error: Unable to process large text - {str(e)}")
             return []
@@ -262,87 +245,3 @@ class GermanNerModel:
 
     
 
-#### absolute tokens
-# Path: german_ner/GermanNER.py
-    '''
-    def find_best_cosine_similarity(self, query, candidates):
-        """
-        Calculate the cosine similarity between two texts based on the entities recognized by the NER model.
-
-        Args:
-            s1 (str): The first input text.
-            candidates (list): A list of candidate texts to compare with the first text.
-
-        Returns:
-            tuple: A tuple containing the best match from the candidate texts and the cosine similarity score.
-
-        Example Usage:
-            ner_model = GermanNerModel("xlm-roberta-large-finetuned-conll03-german")
-            best_match, similarity = ner_model.find_best_cosine_similarity("Angela Merkel ist die Bundeskanzlerin von Deutschland.", ["Merkel ist die Kanzlerin von Deutschland.", "Die Kanzlerin von Deutschland ist Angela Merkel."])
-            print(best_match, similarity)
-        """
-
-        entities_query = self.perform_ner(["-PER", "-ORG"], query)
-        vec_query= self.entities_to_vec(entities_query)
-        
-        if len(entities_query) == 0:
-            return None, 0.0
-        
-        max_similarity = 0.0
-        #best_match = None
-        best_index = None
-        
-        for index, entry in enumerate(candidates):
-            print('index, entry ', index, entry )
-            entities_candidate = self.perform_ner(["-PER", "-ORG"], entry)
-            vec_candidate= self.entities_to_vec(entities_candidate)
-            if vec_query.shape == vec_candidate.shape:
-                cos_sim = cosine_similarity(vec_query.reshape(1, -1), vec_candidate.reshape(1, -1))[0][0]
-                print('cos_sim', cos_sim)
-                if cos_sim > max_similarity:
-                    max_similarity = cos_sim
-                    #best_match = entry
-                    best_index = index
-
-        print('best_index, max_similarity', best_index, max_similarity)
-        return best_index, max_similarity
-
-
-    def calculate_cosine_similarity_ner(self, text1, text2):
-        """
-        Calculate the cosine similarity between two texts based on the entities recognized by the NER model.
-
-        Args:
-            text1 (str): The first input text.
-            text2 (str): The second input text.
-
-        Returns:
-            float: The cosine similarity between the two texts based on the entities recognized by the NER model.
-
-        Example Usage:
-            ner_model = GermanNerModel("xlm-roberta-large-finetuned-conll03-german")
-            similarity = ner_model.calculate_cosine_similarity_ner("Angela Merkel ist die Bundeskanzlerin von Deutschland.", "Merkel ist die Kanzlerin von Deutschland.")
-            print(similarity)
-        """
-
-        try:
-            entities1 = self.perform_ner(["-PER", "-ORG"], text1)
-            entities2 = self.perform_ner(["-PER", "-ORG"], text2)
-
-            if entities1 and entities2:
-                entity_set1 = set([entity[0] for entity in entities1])
-                entity_set2 = set([entity[0] for entity in entities2])
-
-                common_entities = entity_set1.intersection(entity_set2)
-                if len(common_entities) == 0:
-                    return 0.0
-
-                return len(common_entities) / (len(entity_set1) * len(entity_set2)) ** 0.5
-
-            return 0.0
-
-        except Exception as e:
-            print(f"Error: Unable to calculate cosine similarity - {str(e)}")
-            return 0.0
-
-    '''
